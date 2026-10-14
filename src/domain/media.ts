@@ -1,0 +1,37 @@
+export type MediaCompatibility = "direct" | "uncertain";
+
+export interface MediaAssessment {
+  compatibility: MediaCompatibility;
+  message: string;
+}
+
+const DIRECT_EXTENSIONS = new Set(["mp4", "m4v", "webm", "mov"]);
+const PROXY_CANDIDATE_EXTENSIONS = new Set(["mkv", "avi", "wmv", "flv", "ts", "m2ts"]);
+
+export function getFileExtension(fileName: string): string {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+export function assessMediaFile(file: Pick<File, "name" | "type">): MediaAssessment {
+  const extension = getFileExtension(file.name);
+  if (DIRECT_EXTENSIONS.has(extension)) {
+    return {
+      compatibility: "direct",
+      message: "Định dạng có khả năng phát trực tiếp trên Windows WebView2.",
+    };
+  }
+
+  if (PROXY_CANDIDATE_EXTENSIONS.has(extension)) {
+    return {
+      compatibility: "uncertain",
+      message: "Container hoặc codec này có thể cần tạo editing proxy trên Windows.",
+    };
+  }
+
+  return {
+    compatibility: file.type.startsWith("video/") ? "direct" : "uncertain",
+    message: file.type.startsWith("video/")
+      ? "SubTrans sẽ thử phát trực tiếp bằng WebView2."
+      : "Không nhận diện được định dạng; SubTrans sẽ thử phát trực tiếp.",
+  };
+}
