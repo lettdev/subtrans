@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { assessMediaFile, MediaAssessment } from "./domain/media";
+import { assessMediaFile, externalAudioNeedsSync, MediaAssessment } from "./domain/media";
 import {
   AUTOSAVE_KEY,
   createProject,
@@ -62,6 +62,7 @@ import {
 type IconName =
   | "ai"
   | "approve"
+  | "audio"
   | "captions"
   | "check"
   | "chevron"
@@ -91,6 +92,7 @@ type IconName =
 const ICON_PATHS: Record<IconName, ReactNode> = {
   ai: <><path d="m12 3 1.2 4.1a5.2 5.2 0 0 0 3.7 3.7L21 12l-4.1 1.2a5.2 5.2 0 0 0-3.7 3.7L12 21l-1.2-4.1a5.2 5.2 0 0 0-3.7-3.7L3 12l4.1-1.2a5.2 5.2 0 0 0 3.7-3.7Z"/><path d="m19 3 .4 1.4A2 2 0 0 0 21 6l-1.6.4A2 2 0 0 0 18 8l-.4-1.6A2 2 0 0 0 16 5l1.6-.6A2 2 0 0 0 19 3Z"/></>,
   approve: <><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></>,
+  audio: <><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>,
   captions: <><path d="M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M9 10.5a2.5 2.5 0 1 0 0 3M17 10.5a2.5 2.5 0 1 0 0 3"/></>,
   check: <path d="m5 12 4 4L19 6" />,
   chevron: <path d="m9 18 6-6-6-6" />,
@@ -215,6 +217,7 @@ function App() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [parseIssueCount, setParseIssueCount] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [externalAudioUrl, setExternalAudioUrl] = useState<string | null>(null);
   const [mediaAssessment, setMediaAssessment] = useState<MediaAssessment | null>(null);
   const [mediaError, setMediaError] = useState("");
   const [currentMs, setCurrentMs] = useState(0);
@@ -236,7 +239,9 @@ function App() {
   const [proxyProgress, setProxyProgress] = useState<ProxyProgress>({ phase: "starting", processedMs: 0, percent: 0 });
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const externalAudioRef = useRef<HTMLAudioElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const translatedInputRef = useRef<HTMLInputElement>(null);
   const projectInputRef = useRef<HTMLInputElement>(null);
@@ -332,9 +337,15 @@ function App() {
     if (!autosave) return;
     try {
       const restored = parseProject(autosave);
-      if (restored.cues.length || restored.subtitleFileName) {
+      if (restored.cues.length || restored.subtitleFileName || restored.mediaName || restored.externalAudioName) {
         setProject(restored);
         setSelectedUid(restored.cues[0]?.uid ?? null);
+        if (runningInTauri() && (restored.mediaProxyPath || restored.mediaPath)) {
+          setVideoUrl(nativeMediaUrl(restored.mediaProxyPath || restored.mediaPath!));
+        }
+        if (runningInTauri() && restored.externalAudioPath) {
+          setExternalAudioUrl(nativeMediaUrl(restored.externalAudioPath));
+        }
         setNotice(`Đã khôi phục autosave “${restored.name}”.`);
       }
     } catch {
@@ -387,7 +398,7 @@ function App() {
   useEffect(() => () => translationAbortRef.current?.abort(), []);
 
   useEffect(() => {
-    if (!restoredRef.current || (!project.cues.length && !project.subtitleFileName && !project.mediaName)) return;
+    if (!restoredRef.current || (!project.cues.length && !project.subtitleFileName && !project.mediaName && !project.externalAudioName)) return;
     setSaveState("saving");
     const timer = window.setTimeout(async () => {
       const serialized = serializeProject(project);
@@ -410,6 +421,12 @@ function App() {
   }, [videoUrl]);
 
   useEffect(() => {
+    return () => {
+      if (externalAudioUrl?.startsWith("blob:")) URL.revokeObjectURL(externalAudioUrl);
+    };
+  }, [externalAudioUrl]);
+
+  useEffect(() => {
     if (!activeCue) return;
     rowRefs.current.get(activeCue.uid)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [activeCue?.uid]);
@@ -419,6 +436,31 @@ function App() {
       setSelectedUid(cues[0]?.uid ?? null);
     }
   }, [cues, selectedUid]);
+
+  const syncExternalAudio = useCallback((force = false) => {
+    const video = videoRef.current;
+    const audio = externalAudioRef.current;
+    if (!video || !audio || audio.readyState === 0) return;
+    audio.playbackRate = video.playbackRate;
+    if (!force && !externalAudioNeedsSync(video.currentTime, audio.currentTime)) return;
+    const target = Number.isFinite(audio.duration)
+      ? Math.min(video.currentTime, Math.max(0, audio.duration - 0.001))
+      : video.currentTime;
+    audio.currentTime = Math.max(0, target);
+  }, []);
+
+  const playExternalAudio = useCallback(() => {
+    const audio = externalAudioRef.current;
+    if (!audio) return;
+    syncExternalAudio(true);
+    void audio.play().catch(() => {
+      setNotice("Audio rời chưa phát được. Hãy thử play lại hoặc chọn một file audio khác.");
+    });
+  }, [syncExternalAudio]);
+
+  const pauseExternalAudio = useCallback(() => {
+    externalAudioRef.current?.pause();
+  }, []);
 
   const jumpToCue = useCallback((cue: SubtitleCue, autoplay = true) => {
     setSelectedUid(cue.uid);
@@ -496,7 +538,15 @@ function App() {
       setNotice("Không tìm thấy cue hợp lệ trong file SRT.");
       return;
     }
-    const next = createProject(result.cues, { name: fileName.replace(/\.srt$/i, ""), subtitleFileName: fileName, mediaName: project.mediaName, mediaPath: project.mediaPath, mediaProxyPath: project.mediaProxyPath });
+    const next = createProject(result.cues, {
+      name: fileName.replace(/\.srt$/i, ""),
+      subtitleFileName: fileName,
+      mediaName: project.mediaName,
+      mediaPath: project.mediaPath,
+      mediaProxyPath: project.mediaProxyPath,
+      externalAudioName: project.externalAudioName,
+      externalAudioPath: project.externalAudioPath,
+    });
     setProject(next);
     setProjectPath(null);
     setParseIssueCount(result.issues.length);
@@ -523,6 +573,23 @@ function App() {
     setNotice(`Đã nạp video ${name}.`);
   };
 
+  const chooseExternalAudio = async () => {
+    if (!runningInTauri()) return audioInputRef.current?.click();
+    const path = await chooseNativePath("audio");
+    if (!path) return;
+    const name = baseName(path);
+    setExternalAudioUrl(nativeMediaUrl(path));
+    setProject((current) => ({ ...current, externalAudioName: name, externalAudioPath: path }));
+    setNotice(`Đã nạp audio rời ${name}; track âm thanh trong video sẽ được tắt.`);
+  };
+
+  const removeExternalAudio = () => {
+    pauseExternalAudio();
+    setExternalAudioUrl(null);
+    setProject((current) => ({ ...current, externalAudioName: "", externalAudioPath: undefined }));
+    setNotice("Đã gỡ audio rời; đang dùng lại âm thanh trong video.");
+  };
+
   const openProject = async () => {
     if (!runningInTauri()) return projectInputRef.current?.click();
     const path = await chooseNativePath("project");
@@ -532,7 +599,8 @@ function App() {
       setProject(loaded);
       setProjectPath(path);
       setSelectedUid(loaded.cues[0]?.uid ?? null);
-      if (loaded.mediaProxyPath || loaded.mediaPath) setVideoUrl(nativeMediaUrl(loaded.mediaProxyPath || loaded.mediaPath!));
+      setVideoUrl(loaded.mediaProxyPath || loaded.mediaPath ? nativeMediaUrl(loaded.mediaProxyPath || loaded.mediaPath!) : null);
+      setExternalAudioUrl(loaded.externalAudioPath ? nativeMediaUrl(loaded.externalAudioPath) : null);
       if (loaded.mediaName) setMediaAssessment(loaded.mediaProxyPath
         ? { compatibility: "direct", message: "Đang dùng editing proxy H.264/AAC do SubTrans tạo." }
         : assessMediaFile({ name: loaded.mediaName, type: "video/unknown" }));
@@ -568,11 +636,14 @@ function App() {
   };
 
   const newProject = () => {
-    if ((cues.length || project.mediaName) && !window.confirm("Tạo project mới? Project hiện tại đã được autosave.")) return;
+    if ((cues.length || project.mediaName || project.externalAudioName) && !window.confirm("Tạo project mới? Project hiện tại đã được autosave.")) return;
     if (videoUrl?.startsWith("blob:")) URL.revokeObjectURL(videoUrl);
+    if (externalAudioUrl?.startsWith("blob:")) URL.revokeObjectURL(externalAudioUrl);
+    pauseExternalAudio();
     setProject(createProject());
     setProjectPath(null);
     setVideoUrl(null);
+    setExternalAudioUrl(null);
     setMediaAssessment(null);
     setMediaError("");
     setSelectedUid(null);
@@ -666,12 +737,23 @@ function App() {
     event.target.value = "";
   };
 
+  const handleAudioInput = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setExternalAudioUrl(URL.createObjectURL(file));
+    setProject((current) => ({ ...current, externalAudioName: file.name, externalAudioPath: undefined }));
+    setNotice(`Đã nạp audio rời ${file.name}; track âm thanh trong video sẽ được tắt.`);
+    event.target.value = "";
+  };
+
   const loadProjectContent = (content: string, fileName: string) => {
     try {
       const loaded = parseProject(content);
       setProject(loaded);
       setProjectPath(null);
       setSelectedUid(loaded.cues[0]?.uid ?? null);
+      setVideoUrl(null);
+      setExternalAudioUrl(null);
       resetHistory();
       setNotice(`Đã mở project ${fileName}. Chọn lại video nếu cần.`);
     } catch (error) {
@@ -962,6 +1044,8 @@ function App() {
           <section className="sidebar-section">
             <div className="section-eyebrow">Nguồn</div>
             <button className="source-row" onClick={() => void chooseVideo()}><span className={`source-icon ${project.mediaName ? "is-ready" : ""}`}><Icon name="film" /></span><span><strong>Video</strong><small>{project.mediaName ? `${project.mediaName}${project.mediaProxyPath ? " · proxy" : ""}` : "Chọn file local"}</small></span><Icon name="chevron" size={16} /></button>
+            <button className="source-row" onClick={() => void chooseExternalAudio()}><span className={`source-icon ${externalAudioUrl ? "is-ready" : ""}`}><Icon name="audio" /></span><span><strong>Audio rời</strong><small>{project.externalAudioName ? `${project.externalAudioName}${externalAudioUrl ? "" : " · chọn lại file"}` : "Tùy chọn · MP3, WAV, M4A…"}</small></span><Icon name="chevron" size={16} /></button>
+            {externalAudioUrl && <button className="source-remove" onClick={removeExternalAudio}>Gỡ audio rời · dùng track trong video</button>}
             <button className="source-row" onClick={() => void chooseSubtitle()}><span className={`source-icon ${cues.length ? "is-ready" : ""}`}><Icon name="subtitles" /></span><span><strong>Subtitle gốc</strong><small>{project.subtitleFileName || "Chọn file .srt"}</small></span><Icon name="chevron" size={16} /></button>
             <button className="source-row" disabled={!cues.length} onClick={() => void chooseTranslation()}><span className="source-icon"><Icon name="upload" /></span><span><strong>Import bản dịch</strong><small>Ghép theo index và timing</small></span><Icon name="chevron" size={16} /></button>
           </section>
@@ -997,11 +1081,13 @@ function App() {
         <main className="main-panel">
           <section className="player-panel">
             <div className="player-stage">
-              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1_000)} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
+              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onPlay={() => syncExternalAudio(true)} onPlaying={playExternalAudio} onPause={pauseExternalAudio} onWaiting={pauseExternalAudio} onStalled={pauseExternalAudio} onSeeking={() => { pauseExternalAudio(); syncExternalAudio(true); }} onSeeked={(event) => { syncExternalAudio(true); if (!event.currentTarget.paused) playExternalAudio(); }} onRateChange={() => syncExternalAudio(true)} onEnded={pauseExternalAudio} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => { setCurrentMs(event.currentTarget.currentTime * 1_000); syncExternalAudio(); }} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); syncExternalAudio(true); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
+              {externalAudioUrl && <audio ref={externalAudioRef} key={externalAudioUrl} src={externalAudioUrl} preload="auto" hidden onLoadedMetadata={() => syncExternalAudio(true)} onCanPlay={() => { syncExternalAudio(true); if (videoRef.current && !videoRef.current.paused && videoRef.current.readyState >= 3) playExternalAudio(); }} onError={() => setNotice("Không đọc được audio rời. Hãy thử MP3, WAV, M4A hoặc AAC.")} />}
             </div>
             <div className="player-footer">
               <div className="time-readout"><span>{formatPlaybackTime(currentMs)}</span><span className="time-divider">/</span><span>{formatPlaybackTime(durationMs)}</span></div>
               {mediaAssessment && <div className={`media-badge ${mediaAssessment.compatibility}`} title={mediaAssessment.message}><Icon name={mediaAssessment.compatibility === "direct" ? "check" : "warning"} size={15} />{project.mediaProxyPath ? "Editing proxy" : mediaAssessment.compatibility === "direct" ? "Direct playback" : "Đang kiểm tra codec"}</div>}
+              {externalAudioUrl && <div className="media-badge external-audio" title={project.externalAudioName}><Icon name="audio" size={14} />Audio rời · sync</div>}
               {activeCue && <div className="active-readout">Cue #{activeCue.index} · {msToTimestamp(activeCue.startMs)}</div>}
             </div>
             {(mediaError || (mediaAssessment?.compatibility === "uncertain" && !mediaError)) && <div className={`media-notice ${mediaError ? "is-error" : ""}`}><Icon name={mediaError ? "warning" : "info"} /><span>{mediaError || mediaAssessment?.message}</span><button onClick={() => void (proxyRunState === "running" ? stopEditingProxy() : buildEditingProxy())}>{proxyRunState === "running" ? "Hủy proxy" : "Tạo editing proxy"}</button></div>}
@@ -1052,6 +1138,7 @@ function App() {
       </div>
 
       <input ref={videoInputRef} className="visually-hidden" type="file" accept="video/*,.mkv,.avi,.wmv,.m2ts,.ts" onChange={handleVideoInput} />
+      <input ref={audioInputRef} className="visually-hidden" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.webm" onChange={handleAudioInput} />
       <input ref={subtitleInputRef} className="visually-hidden" type="file" accept=".srt,application/x-subrip,text/plain" onChange={(event) => { const file = event.target.files?.[0]; if (file) void file.text().then((content) => loadSrtContent(content, file.name)); event.target.value = ""; }} />
       <input ref={translatedInputRef} className="visually-hidden" type="file" accept=".srt,application/x-subrip,text/plain" onChange={(event) => { const file = event.target.files?.[0]; if (file) void file.text().then((content) => importTranslationContent(content, file.name)); event.target.value = ""; }} />
       <input ref={projectInputRef} className="visually-hidden" type="file" accept=".json,.subtrans.json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void file.text().then((content) => loadProjectContent(content, file.name)); event.target.value = ""; }} />

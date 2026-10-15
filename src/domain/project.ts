@@ -16,6 +16,8 @@ export interface SubTransProject {
   mediaName: string;
   mediaPath?: string;
   mediaProxyPath?: string;
+  externalAudioName: string;
+  externalAudioPath?: string;
   cues: SubtitleCue[];
   translation: {
     settings: TranslationSettings;
@@ -27,7 +29,7 @@ export interface SubTransProject {
 
 export function createProject(
   cues: SubtitleCue[] = [],
-  options: Partial<Pick<SubTransProject, "name" | "subtitleFileName" | "mediaName" | "mediaPath" | "mediaProxyPath">> = {},
+  options: Partial<Pick<SubTransProject, "name" | "subtitleFileName" | "mediaName" | "mediaPath" | "mediaProxyPath" | "externalAudioName" | "externalAudioPath">> = {},
 ): SubTransProject {
   const now = new Date().toISOString();
   return {
@@ -37,6 +39,8 @@ export function createProject(
     mediaName: options.mediaName || "",
     mediaPath: options.mediaPath,
     mediaProxyPath: options.mediaProxyPath,
+    externalAudioName: options.externalAudioName || "",
+    externalAudioPath: options.externalAudioPath,
     cues,
     translation: {
       settings: createTranslationSettings(),
@@ -83,6 +87,8 @@ export function parseProject(content: string): SubTransProject {
     mediaName: typeof candidate.mediaName === "string" ? candidate.mediaName : "",
     mediaPath: typeof candidate.mediaPath === "string" ? candidate.mediaPath : undefined,
     mediaProxyPath: typeof candidate.mediaProxyPath === "string" ? candidate.mediaProxyPath : undefined,
+    externalAudioName: typeof candidate.externalAudioName === "string" ? candidate.externalAudioName : "",
+    externalAudioPath: typeof candidate.externalAudioPath === "string" ? candidate.externalAudioPath : undefined,
     cues,
     translation: {
       settings: createTranslationSettings(candidate.translation?.settings),

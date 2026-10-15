@@ -413,6 +413,22 @@ textarea:focus-visible,
   color: #4d5665;
 }
 
+.source-remove {
+  width: 100%;
+  margin: -5px 0 5px;
+  padding: 3px 4px 6px 42px;
+  color: #8e7890;
+  border: 0;
+  background: none;
+  font-size: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.source-remove:hover {
+  color: #ff9b91;
+}
+
 .source-icon {
   display: grid;
   width: 32px;
@@ -772,6 +788,12 @@ kbd {
   color: #f4b95f;
   border-color: rgba(244, 185, 95, 0.22);
   background: rgba(244, 185, 95, 0.06);
+}
+
+.media-badge.external-audio {
+  color: #b9a7fa;
+  border-color: rgba(155, 128, 247, 0.25);
+  background: rgba(130, 102, 232, 0.08);
 }
 
 .media-notice {

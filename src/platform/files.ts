@@ -1,13 +1,14 @@
 import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 
-export type NativeFileKind = "project" | "subtitle" | "translation" | "video";
+export type NativeFileKind = "project" | "subtitle" | "translation" | "video" | "audio";
 
 const filters = {
   project: [{ name: "SubTrans project", extensions: ["json"] }],
   subtitle: [{ name: "SubRip subtitle", extensions: ["srt"] }],
   translation: [{ name: "Translated subtitle", extensions: ["srt"] }],
   video: [{ name: "Video", extensions: ["mp4", "m4v", "webm", "mov", "mkv", "avi", "wmv", "ts", "m2ts"] }],
+  audio: [{ name: "Audio", extensions: ["mp3", "wav", "m4a", "aac", "ogg", "opus", "flac", "webm"] }],
 };
 
 export function runningInTauri(): boolean {

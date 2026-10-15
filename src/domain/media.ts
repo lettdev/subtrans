@@ -8,6 +8,16 @@ export interface MediaAssessment {
 const DIRECT_EXTENSIONS = new Set(["mp4", "m4v", "webm", "mov"]);
 const PROXY_CANDIDATE_EXTENSIONS = new Set(["mkv", "avi", "wmv", "flv", "ts", "m2ts"]);
 
+export const EXTERNAL_AUDIO_DRIFT_TOLERANCE_SECONDS = 0.18;
+
+export function externalAudioNeedsSync(
+  videoSeconds: number,
+  audioSeconds: number,
+  toleranceSeconds = EXTERNAL_AUDIO_DRIFT_TOLERANCE_SECONDS,
+): boolean {
+  return Math.abs(videoSeconds - audioSeconds) > toleranceSeconds;
+}
+
 export function getFileExtension(fileName: string): string {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
 }

@@ -7,10 +7,16 @@ const content = `1\n00:00:01,000 --> 00:00:01,400\nA very long subtitle line tha
 
 describe("project domain", () => {
   it("round-trips a versioned project", () => {
-    const project = createProject(parseSrt(content).cues, { name: "Movie: One" });
+    const project = createProject(parseSrt(content).cues, {
+      name: "Movie: One",
+      externalAudioName: "episode.m4a",
+      externalAudioPath: "C:\\Media\\episode.m4a",
+    });
     const restored = parseProject(serializeProject(project));
     expect(restored.version).toBe(3);
     expect(restored.cues).toHaveLength(2);
+    expect(restored.externalAudioName).toBe("episode.m4a");
+    expect(restored.externalAudioPath).toBe("C:\\Media\\episode.m4a");
     expect(projectFileName(restored.name)).toBe("Movie- One.subtrans.json");
   });
 
