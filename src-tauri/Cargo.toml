@@ -1,6 +1,6 @@
 [package]
 name = "subtrans"
-version = "0.4.3"
+version = "0.4.4"
 description = "A Windows-first subtitle translation and editing workspace"
 authors = ["SubTrans contributors"]
 edition = "2021"

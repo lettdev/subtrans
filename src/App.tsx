@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { assessMediaFile, externalAudioNeedsSync, MediaAssessment } from "./domain/media";
+import { assessMediaFile, MediaAssessment } from "./domain/media";
 import {
   AUTOSAVE_KEY,
   createProject,
@@ -437,36 +437,52 @@ function App() {
     }
   }, [cues, selectedUid]);
 
-  const syncExternalAudio = useCallback((force = false) => {
+  useEffect(() => {
     const video = videoRef.current;
     const audio = externalAudioRef.current;
-    if (!video || !audio || audio.readyState === 0) return;
-    audio.playbackRate = video.playbackRate;
-    if (!force && !externalAudioNeedsSync(video.currentTime, audio.currentTime)) return;
-    const target = Number.isFinite(audio.duration)
-      ? Math.min(video.currentTime, Math.max(0, audio.duration - 0.001))
-      : video.currentTime;
-    audio.currentTime = Math.max(0, target);
-  }, []);
+    if (!video || !audio || !videoUrl || !externalAudioUrl) return;
 
-  const playExternalAudio = useCallback(() => {
-    const audio = externalAudioRef.current;
-    if (!audio) return;
-    syncExternalAudio(true);
-    void audio.play().catch(() => {
-      setNotice("Audio rời chưa phát được. Hãy thử play lại hoặc chọn một file audio khác.");
-    });
-  }, [syncExternalAudio]);
+    const alignAudio = () => {
+      if (audio.readyState === 0) return;
+      audio.currentTime = Math.max(0, video.currentTime);
+    };
+    const matchRate = () => {
+      audio.playbackRate = video.playbackRate;
+      audio.preservesPitch = true;
+    };
+    const playAudio = () => {
+      alignAudio();
+      matchRate();
+      void audio.play().catch(() => {
+        setNotice("Audio rời chưa phát được. Hãy thử play lại hoặc chọn một file audio khác.");
+      });
+    };
+    const pauseAudio = () => audio.pause();
+    const handleAudioReady = () => {
+      alignAudio();
+      matchRate();
+      if (!video.paused) void audio.play().catch(() => undefined);
+    };
 
-  const pauseExternalAudio = useCallback(() => {
-    externalAudioRef.current?.pause();
-  }, []);
+    video.addEventListener("play", playAudio);
+    video.addEventListener("pause", pauseAudio);
+    video.addEventListener("seeking", alignAudio);
+    video.addEventListener("ratechange", matchRate);
+    video.addEventListener("ended", pauseAudio);
+    audio.addEventListener("loadedmetadata", handleAudioReady);
+    matchRate();
+    if (!video.paused) playAudio();
 
-  useEffect(() => {
-    if (!externalAudioUrl) return;
-    const timer = window.setInterval(() => syncExternalAudio(false), 2_000);
-    return () => window.clearInterval(timer);
-  }, [externalAudioUrl, syncExternalAudio]);
+    return () => {
+      video.removeEventListener("play", playAudio);
+      video.removeEventListener("pause", pauseAudio);
+      video.removeEventListener("seeking", alignAudio);
+      video.removeEventListener("ratechange", matchRate);
+      video.removeEventListener("ended", pauseAudio);
+      audio.removeEventListener("loadedmetadata", handleAudioReady);
+      audio.pause();
+    };
+  }, [externalAudioUrl, videoUrl]);
 
   const jumpToCue = useCallback((cue: SubtitleCue, autoplay = true) => {
     setSelectedUid(cue.uid);
@@ -590,7 +606,7 @@ function App() {
   };
 
   const removeExternalAudio = () => {
-    pauseExternalAudio();
+    externalAudioRef.current?.pause();
     setExternalAudioUrl(null);
     setProject((current) => ({ ...current, externalAudioName: "", externalAudioPath: undefined }));
     setNotice("Đã gỡ audio rời; đang dùng lại âm thanh trong video.");
@@ -645,7 +661,7 @@ function App() {
     if ((cues.length || project.mediaName || project.externalAudioName) && !window.confirm("Tạo project mới? Project hiện tại đã được autosave.")) return;
     if (videoUrl?.startsWith("blob:")) URL.revokeObjectURL(videoUrl);
     if (externalAudioUrl?.startsWith("blob:")) URL.revokeObjectURL(externalAudioUrl);
-    pauseExternalAudio();
+    externalAudioRef.current?.pause();
     setProject(createProject());
     setProjectPath(null);
     setVideoUrl(null);
@@ -1087,8 +1103,8 @@ function App() {
         <main className="main-panel">
           <section className="player-panel">
             <div className="player-stage">
-              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onPlay={() => syncExternalAudio(true)} onPlaying={playExternalAudio} onPause={pauseExternalAudio} onWaiting={pauseExternalAudio} onStalled={pauseExternalAudio} onSeeking={() => { pauseExternalAudio(); syncExternalAudio(true); }} onSeeked={(event) => { syncExternalAudio(true); if (!event.currentTarget.paused) playExternalAudio(); }} onRateChange={() => syncExternalAudio(true)} onEnded={pauseExternalAudio} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1_000)} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); syncExternalAudio(true); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
-              {externalAudioUrl && <audio ref={externalAudioRef} key={externalAudioUrl} src={externalAudioUrl} preload="auto" hidden onLoadedMetadata={() => syncExternalAudio(true)} onCanPlay={() => { syncExternalAudio(true); if (videoRef.current && !videoRef.current.paused && videoRef.current.readyState >= 3) playExternalAudio(); }} onError={() => setNotice("Không đọc được audio rời. Hãy thử MP3, WAV, M4A hoặc AAC.")} />}
+              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1_000)} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
+              {externalAudioUrl && <audio ref={externalAudioRef} key={externalAudioUrl} src={externalAudioUrl} preload="auto" hidden onError={() => setNotice("Không đọc được audio rời. Hãy thử MP3, WAV, M4A hoặc AAC.")} />}
             </div>
             <div className="player-footer">
               <div className="time-readout"><span>{formatPlaybackTime(currentMs)}</span><span className="time-divider">/</span><span>{formatPlaybackTime(durationMs)}</span></div>

@@ -1,12 +1,12 @@
 # SubTrans
 
-SubTrans is a Windows-first desktop workspace for translating and editing movie subtitles while following a local video. The four planned implementation phases are now represented in the codebase; the current desktop release is **0.4.3**. The previous prototype remains untouched in [`ref/`](./ref/).
+SubTrans is a Windows-first desktop workspace for translating and editing movie subtitles while following a local video. The four planned implementation phases are now represented in the codebase; the current desktop release is **0.4.4**. The previous prototype remains untouched in [`ref/`](./ref/).
 
 ## Implemented features
 
 - Open a local video and inspect whether Windows WebView2 is likely to play it directly.
-- Attach an external audio track, mute the video's original track, and keep play/pause/seek/rate synchronized with low-jitter drift correction.
-- Keep the video player and controls pinned while the active subtitle auto-scrolls, with a larger readability-focused UI scale.
+- Attach an external audio track, mute the video's original track, and synchronize only on playback events so MP3 decoding is not interrupted by periodic seeking.
+- Keep the video player and controls fixed while the subtitle list scrolls independently, with a larger readability-focused UI scale.
 - Parse SRT files with BOM, CRLF, multiline cues, and either comma or dot milliseconds.
 - Follow and auto-scroll the active subtitle while the video plays.
 - Edit source and Vietnamese text side by side.
