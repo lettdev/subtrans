@@ -8,7 +8,9 @@ export interface MediaAssessment {
 const DIRECT_EXTENSIONS = new Set(["mp4", "m4v", "webm", "mov"]);
 const PROXY_CANDIDATE_EXTENSIONS = new Set(["mkv", "avi", "wmv", "flv", "ts", "m2ts"]);
 
-export const EXTERNAL_AUDIO_DRIFT_TOLERANCE_SECONDS = 0.18;
+// Separate HTML media decoders do not advance on the exact same clock. A generous
+// tolerance avoids audible MP3 glitches caused by repeatedly assigning currentTime.
+export const EXTERNAL_AUDIO_DRIFT_TOLERANCE_SECONDS = 0.75;
 
 export function externalAudioNeedsSync(
   videoSeconds: number,

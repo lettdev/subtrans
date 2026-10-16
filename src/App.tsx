@@ -462,6 +462,12 @@ function App() {
     externalAudioRef.current?.pause();
   }, []);
 
+  useEffect(() => {
+    if (!externalAudioUrl) return;
+    const timer = window.setInterval(() => syncExternalAudio(false), 2_000);
+    return () => window.clearInterval(timer);
+  }, [externalAudioUrl, syncExternalAudio]);
+
   const jumpToCue = useCallback((cue: SubtitleCue, autoplay = true) => {
     setSelectedUid(cue.uid);
     if (!videoRef.current) return;
@@ -1081,7 +1087,7 @@ function App() {
         <main className="main-panel">
           <section className="player-panel">
             <div className="player-stage">
-              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onPlay={() => syncExternalAudio(true)} onPlaying={playExternalAudio} onPause={pauseExternalAudio} onWaiting={pauseExternalAudio} onStalled={pauseExternalAudio} onSeeking={() => { pauseExternalAudio(); syncExternalAudio(true); }} onSeeked={(event) => { syncExternalAudio(true); if (!event.currentTarget.paused) playExternalAudio(); }} onRateChange={() => syncExternalAudio(true)} onEnded={pauseExternalAudio} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => { setCurrentMs(event.currentTarget.currentTime * 1_000); syncExternalAudio(); }} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); syncExternalAudio(true); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
+              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onPlay={() => syncExternalAudio(true)} onPlaying={playExternalAudio} onPause={pauseExternalAudio} onWaiting={pauseExternalAudio} onStalled={pauseExternalAudio} onSeeking={() => { pauseExternalAudio(); syncExternalAudio(true); }} onSeeked={(event) => { syncExternalAudio(true); if (!event.currentTarget.paused) playExternalAudio(); }} onRateChange={() => syncExternalAudio(true)} onEnded={pauseExternalAudio} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1_000)} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); syncExternalAudio(true); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
               {externalAudioUrl && <audio ref={externalAudioRef} key={externalAudioUrl} src={externalAudioUrl} preload="auto" hidden onLoadedMetadata={() => syncExternalAudio(true)} onCanPlay={() => { syncExternalAudio(true); if (videoRef.current && !videoRef.current.paused && videoRef.current.readyState >= 3) playExternalAudio(); }} onError={() => setNotice("Không đọc được audio rời. Hãy thử MP3, WAV, M4A hoặc AAC.")} />}
             </div>
             <div className="player-footer">

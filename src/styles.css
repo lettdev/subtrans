@@ -222,7 +222,7 @@ textarea:focus-visible,
 
 .workspace {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 270px minmax(0, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -651,9 +651,13 @@ kbd {
 }
 
 .player-panel {
+  position: sticky;
+  top: 0;
+  z-index: 8;
   padding: 18px 22px 14px;
   border-bottom: 1px solid var(--line);
-  background: rgba(10, 13, 18, 0.84);
+  background: rgba(10, 13, 18, 0.98);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 
 .player-stage {
@@ -1109,6 +1113,7 @@ kbd {
   transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
   content-visibility: auto;
   contain-intrinsic-size: 106px;
+  scroll-margin-top: calc(clamp(250px, 39vh, 410px) + 86px);
 }
 
 .cue-row::before {
@@ -1436,6 +1441,87 @@ kbd {
   cursor: help;
 }
 
+/* Readability pass: the editor is designed for long sessions, so important UI
+   text stays at 11–14 px instead of the original dense 7–10 px scale. */
+.button {
+  font-size: 13px;
+}
+
+.brand-edition,
+.project-card p,
+.progress-meta,
+.source-row strong,
+.source-row small,
+.summary-card > div:not(.section-eyebrow),
+.shortcut-card > div:not(.section-eyebrow),
+.sidebar-status,
+.player-empty small,
+.media-notice,
+.search-box input,
+.filter-box select,
+.no-results strong,
+.editor-empty p,
+.settings-title,
+.key-row input,
+.settings-textarea textarea {
+  font-size: 12px;
+}
+
+.section-eyebrow,
+.save-indicator,
+.source-remove,
+.summary-card button,
+.no-results button,
+.ai-card-heading > span,
+.ai-model,
+.ai-plan,
+.ai-run-status,
+.ai-start,
+.ai-card > small,
+kbd,
+.time-readout,
+.active-readout,
+.media-badge,
+.media-notice button,
+.proxy-progress small,
+.tool-button,
+.selection-toolbar button,
+.selection-toolbar,
+.editor-legend,
+.cue-index,
+.cue-time-editor input,
+.settings-section p,
+.settings-grid label > span,
+.settings-textarea > span,
+.settings-grid input,
+.settings-grid select,
+.settings-grid small,
+.settings-summary span,
+.settings-footer > span {
+  font-size: 11px;
+}
+
+.project-name-input,
+.editor-header h2 {
+  font-size: 16px;
+}
+
+.cue-column label,
+.translation-label span,
+.secret-state,
+.cue-issues {
+  font-size: 10px;
+}
+
+.cue-column textarea {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.settings-summary strong {
+  font-size: 13px;
+}
+
 .visually-hidden {
   position: fixed;
   width: 1px;
@@ -1448,7 +1534,7 @@ kbd {
 
 @media (max-width: 1120px) {
   .workspace {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   .cue-row {

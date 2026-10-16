@@ -13,7 +13,7 @@ describe("media compatibility", () => {
   });
 
   it("only corrects external-audio drift after the tolerance is exceeded", () => {
-    expect(externalAudioNeedsSync(12, 12.1)).toBe(false);
-    expect(externalAudioNeedsSync(12, 12.181)).toBe(true);
+    expect(externalAudioNeedsSync(12, 12.5)).toBe(false);
+    expect(externalAudioNeedsSync(12, 12.751)).toBe(true);
   });
 });
