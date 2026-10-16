@@ -798,6 +798,32 @@ kbd {
   background: rgba(130, 102, 232, 0.08);
 }
 
+.external-audio-volume {
+  display: flex;
+  min-width: 190px;
+  align-items: center;
+  gap: 6px;
+  color: #a99ae3;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.external-audio-volume input {
+  width: 88px;
+  height: 16px;
+  margin: 0;
+  accent-color: #9b80f7;
+  cursor: pointer;
+}
+
+.external-audio-volume output {
+  width: 34px;
+  color: #888f9c;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 10px;
+  text-align: right;
+}
+
 .media-notice {
   width: min(100%, 900px);
   margin: 2px auto 0;

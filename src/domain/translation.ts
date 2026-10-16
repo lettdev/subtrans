@@ -177,7 +177,8 @@ export function buildGeminiPrompt(
   return [
     `Translate every subtitle cue to ${settings.targetLanguage}.`,
     "Preserve meaning, tone, line breaks, names, honorifics, pronouns, and consistent forms of address.",
-    "Return exactly one translation for every input id. Never merge, omit, reorder, explain, or add formatting.",
+    "Preserve existing subtitle markup such as <i>, <b>, <u>, <s>, <font color>, and ASS style codes exactly; never add new markup.",
+    "Return exactly one translation for every input id. Never merge, omit, reorder, or explain.",
     "Keep each subtitle concise and natural for screen reading.",
     settings.projectContext ? `PROJECT_CONTEXT:\n${settings.projectContext}` : "",
     settings.characterBible ? `CHARACTER_BIBLE:\n${settings.characterBible}` : "",

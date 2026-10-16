@@ -40,6 +40,7 @@ describe("translation domain", () => {
     expect(prompt).toContain("Mai xưng em với An.");
     expect(prompt).toContain("An là anh của Mai.");
     expect(prompt).toContain('"id":"cue-1"');
+    expect(prompt).toContain("Preserve existing subtitle markup");
   });
 
   it("salvages completed cue objects from a truncated stream", () => {

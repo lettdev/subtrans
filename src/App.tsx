@@ -26,6 +26,7 @@ import {
   SubtitleCue,
   timestampToMs,
 } from "./domain/subtitle";
+import { parseSubtitleMarkup } from "./domain/subtitleMarkup";
 import { validateCues } from "./domain/validation";
 import {
   buildGeminiPrompt,
@@ -185,6 +186,19 @@ function AutoTextarea({ value, label, placeholder, onChange, onFocus, onBlur }: 
   return <textarea ref={ref} aria-label={label} value={value} placeholder={placeholder} rows={2} spellCheck={false} onFocus={onFocus} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} onInput={resize} />;
 }
 
+function SubtitleOverlayText({ text }: { text: string }) {
+  const runs = useMemo(() => parseSubtitleMarkup(text), [text]);
+  return <>{runs.map((run, index) => <span
+    key={`${index}-${run.text.length}`}
+    style={{
+      color: run.color,
+      fontStyle: run.italic ? "italic" : undefined,
+      fontWeight: run.bold ? 800 : undefined,
+      textDecorationLine: [run.underline ? "underline" : "", run.strike ? "line-through" : ""].filter(Boolean).join(" ") || undefined,
+    }}
+  >{run.text}</span>)}</>;
+}
+
 function TimeInput({ value, label, onBegin, onCommit, onEnd }: {
   value: number;
   label: string;
@@ -209,6 +223,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 type ProxyRunState = "idle" | "running" | "error" | "complete";
 
 const FFMPEG_PATH_KEY = "subtrans.ffmpeg-path";
+const EXTERNAL_AUDIO_VOLUME_KEY = "subtrans.external-audio-volume";
 
 function App() {
   const [project, setProject] = useState<SubTransProject>(() => createProject());
@@ -218,6 +233,10 @@ function App() {
   const [parseIssueCount, setParseIssueCount] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [externalAudioUrl, setExternalAudioUrl] = useState<string | null>(null);
+  const [externalAudioVolume, setExternalAudioVolume] = useState(() => {
+    const stored = Number.parseFloat(localStorage.getItem(EXTERNAL_AUDIO_VOLUME_KEY) ?? "1");
+    return Number.isFinite(stored) ? Math.min(1, Math.max(0, stored)) : 1;
+  });
   const [mediaAssessment, setMediaAssessment] = useState<MediaAssessment | null>(null);
   const [mediaError, setMediaError] = useState("");
   const [currentMs, setCurrentMs] = useState(0);
@@ -425,6 +444,11 @@ function App() {
       if (externalAudioUrl?.startsWith("blob:")) URL.revokeObjectURL(externalAudioUrl);
     };
   }, [externalAudioUrl]);
+
+  useEffect(() => {
+    localStorage.setItem(EXTERNAL_AUDIO_VOLUME_KEY, String(externalAudioVolume));
+    if (externalAudioRef.current) externalAudioRef.current.volume = externalAudioVolume;
+  }, [externalAudioUrl, externalAudioVolume]);
 
   useEffect(() => {
     if (!activeCue) return;
@@ -1103,12 +1127,13 @@ function App() {
         <main className="main-panel">
           <section className="player-panel">
             <div className="player-stage">
-              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1_000)} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay">{activeCue.translatedText || activeCue.sourceText}</div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
+              {videoUrl ? <><video ref={videoRef} key={videoUrl} src={videoUrl} controls muted={Boolean(externalAudioUrl)} onVolumeChange={(event) => { if (externalAudioUrl && !event.currentTarget.muted) event.currentTarget.muted = true; }} onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1_000)} onLoadedMetadata={(event) => { setDurationMs(event.currentTarget.duration * 1_000); setMediaError(""); }} onError={() => { setMediaError("WebView không giải mã được video này. File có thể cần editing proxy."); setNotice("Không phát được video trực tiếp; media layer đã đánh dấu cần proxy."); }} />{activeCue && <div className="subtitle-overlay"><SubtitleOverlayText text={activeCue.translatedText || activeCue.sourceText} /></div>}</> : <button className="player-empty" onClick={() => void chooseVideo()}><span className="empty-icon"><Icon name="play" size={28} /></span><strong>Mở video để bắt đầu</strong><small>MP4, WebM, MOV · MKV sẽ được kiểm tra codec</small></button>}
               {externalAudioUrl && <audio ref={externalAudioRef} key={externalAudioUrl} src={externalAudioUrl} preload="auto" hidden onError={() => setNotice("Không đọc được audio rời. Hãy thử MP3, WAV, M4A hoặc AAC.")} />}
             </div>
             <div className="player-footer">
               <div className="time-readout"><span>{formatPlaybackTime(currentMs)}</span><span className="time-divider">/</span><span>{formatPlaybackTime(durationMs)}</span></div>
               {mediaAssessment && <div className={`media-badge ${mediaAssessment.compatibility}`} title={mediaAssessment.message}><Icon name={mediaAssessment.compatibility === "direct" ? "check" : "warning"} size={15} />{project.mediaProxyPath ? "Editing proxy" : mediaAssessment.compatibility === "direct" ? "Direct playback" : "Đang kiểm tra codec"}</div>}
+              {externalAudioUrl && <label className="external-audio-volume"><Icon name="audio" size={14} /><span>Âm lượng</span><input aria-label="Âm lượng audio rời" type="range" min="0" max="1" step="0.01" value={externalAudioVolume} onChange={(event) => setExternalAudioVolume(Number(event.target.value))} /><output>{Math.round(externalAudioVolume * 100)}%</output></label>}
               {externalAudioUrl && <div className="media-badge external-audio" title={project.externalAudioName}><Icon name="audio" size={14} />Audio rời · sync</div>}
               {activeCue && <div className="active-readout">Cue #{activeCue.index} · {msToTimestamp(activeCue.startMs)}</div>}
             </div>
