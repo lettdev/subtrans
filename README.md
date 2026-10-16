@@ -1,6 +1,6 @@
 # SubTrans
 
-SubTrans is a Windows-first desktop workspace for translating and editing movie subtitles while following a local video. The four planned implementation phases are now represented in the codebase; the current desktop release is **0.4.1**. The previous prototype remains untouched in [`ref/`](./ref/).
+SubTrans is a Windows-first desktop workspace for translating and editing movie subtitles while following a local video. The four planned implementation phases are now represented in the codebase; the current desktop release is **0.4.2**. The previous prototype remains untouched in [`ref/`](./ref/).
 
 ## Implemented features
 
@@ -33,7 +33,7 @@ SubTrans is a Windows-first desktop workspace for translating and editing movie 
 - Content-addressed proxy caching that preserves the source video and reuses the proxy while the source is unchanged.
 - Hardened production CSP allowing only local app assets and Gemini API traffic.
 - Windows NSIS installer configuration with per-user install and WebView2 bootstrap handling.
-- macOS DMG configuration and a GitHub Actions workflow that produces Windows/macOS build artifacts.
+- macOS DMG configuration and a GitHub Actions workflow that produces a Windows installer, Windows portable ZIP, and macOS DMG.
 
 ## Request-saving design
 
